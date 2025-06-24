@@ -3,6 +3,7 @@
 #include "Event.h"
 
 namespace Spark {
+
 	class SPARK_API KeyEvent : public Event
 	{
 	public:

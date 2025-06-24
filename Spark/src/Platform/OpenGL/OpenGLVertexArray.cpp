@@ -70,6 +70,7 @@ namespace Spark {
 				layout.GetStride(),
 				(const void*)element.Offset
 			);
+			index++;
 		}
 
 		m_VertexBuffers.push_back(vertexBuffer);

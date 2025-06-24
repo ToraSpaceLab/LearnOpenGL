@@ -2,6 +2,7 @@
 
 #include "Spark/Core.h"
 #include "Spark/Events/Event.h"
+#include "Spark/Events/KeyEvent.h"
 
 namespace Spark {
 	class SPARK_API Layer

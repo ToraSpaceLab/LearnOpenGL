@@ -1,19 +1,20 @@
 #include "sepch.h"
 
 #include "Application.h"
-#include "Renderer/VertexArray.h"
-
-#include <glad/glad.h>
+#include "Spark/Log.h"
+#include "Spark/Renderer/Renderer.h"
+#include "Input.h"
 
 namespace Spark {
-
 	Application* Application::s_Instance = nullptr;
 
 	Application::Application()
 	{
+		SE_CORE_ASSERT(!s_Instance, "Application already exists!");
 		s_Instance = this;
 
 		m_Window = std::unique_ptr<Window>(Window::Create());
+		m_Window->SetEventCallback(SE_BIND_EVENT_FN(Application::OnEvent));
 
 		m_VertexArray.reset(VertexArray::Create());
 
@@ -28,6 +29,11 @@ namespace Spark {
 		vertexBuffer.reset(VertexBuffer::Create(vertices, sizeof(vertices)));
 		m_VertexArray->AddVertexBuffer(vertexBuffer);
 
+		uint32_t indices[3] = { 0, 1, 2 };
+		std::shared_ptr<IndexBuffer> indexBuffer;
+		indexBuffer.reset(IndexBuffer::Create(indices, sizeof(indices) / sizeof(uint32_t)));
+		m_VertexArray->SetIndexBuffer(indexBuffer);
+
 		std::string vertexSrc = R"(
 		#version 330 core
 
@@ -37,7 +43,7 @@ namespace Spark {
 		{
 			gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
 		}
-	)";
+		)";
 
 		std::string fragmentSrc = R"(
 		#version 330 core
@@ -51,7 +57,7 @@ namespace Spark {
 		{
 			FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
 		}
-	)";
+		)";
 
 		std::string greenBlackVertexShaderSource = R"(
 		#version 330 core
@@ -64,7 +70,7 @@ namespace Spark {
 			gl_Position = vec4(aPos, 1.0); // see how we directly give a vec3 to vec4's constructor
 			vertexColor = vec4(0.5, 0.0, 0.0, 1.0); // set the output variable to a dark-red color
 		}
-	)";
+		)";
 
 		const char* greenBlackFragmentShaderSource = R"(
 		#version 330 core
@@ -76,20 +82,67 @@ namespace Spark {
 		{
 			FragColor = ourColor;
 		}
-	)";
+		)";
+
+		m_Shader.reset(new Shader(greenBlackVertexShaderSource, greenBlackFragmentShaderSource));
 	}
 
 	Application::~Application() {}
+
+	void Application::PushLayer(Layer* layer)
+	{
+		m_LayerStack.PushLayer(layer);
+		layer->OnAttach();
+	}
+
+	void Application::PushOverlay(Layer* layer)
+	{
+		m_LayerStack.PushOverlay(layer);
+		layer->OnAttach();
+	}
+
+	void Application::OnEvent(Event& e)
+	{
+		EventDispatcher dispatcher(e);
+		dispatcher.Dispatch<WindowCloseEvent>(SE_BIND_EVENT_FN(Application::OnWindowClose));
+
+		for (auto it = m_LayerStack.end(); it != m_LayerStack.begin();)
+		{
+			(*--it)->OnEvent(e);
+
+			if (e.Handled)
+			{
+				break;
+			}
+		}
+	}
 
 	void Application::Run()
 	{
 		while (m_Running)
 		{
-			// rendering commands here
-			glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-			glClear(GL_COLOR_BUFFER_BIT);
+			RenderCommand::SetClearColor({ 0.2f, 0.3f, 0.3f, 1.0f });
+			RenderCommand::Clear();
 
+			Renderer::BeginScene();		// Begin Scene
 
+			m_Shader->Bind();
+			Renderer::Submit(m_VertexArray);
+
+			Renderer::EndScene();		// End Scene
+
+			for (Layer* layer : m_LayerStack)
+			{
+				layer->OnUpdate();
+			}
+
+			m_Window->OnUpdate();
 		}
+	}
+
+	bool Application::OnWindowClose(WindowCloseEvent& e)
+	{
+		m_Running = false;
+		return true;
 	}
 }

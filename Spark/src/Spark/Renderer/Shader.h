@@ -11,7 +11,7 @@ namespace Spark {
 		~Shader();
 
 		void Bind() const;
-		void Unbine() const;
+		void Unbind() const;
 
 	private:
 		uint32_t m_RendererID;
